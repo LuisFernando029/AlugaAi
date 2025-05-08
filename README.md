@@ -1,0 +1,2 @@
+# AlugaAi
+Projeto acadêmico interdisciplinar
