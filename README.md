@@ -1,2 +1,2 @@
-# AlugaAi
+## AlugaAi
 Projeto acadêmico interdisciplinar
