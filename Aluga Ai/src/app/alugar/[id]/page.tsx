@@ -2,16 +2,18 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Item } from "@prisma/client"; // Certifique-se de que este import está correto para o seu Prisma Client
+import { Item } from "@prisma/client";
 
 export default function AlugarPage() {
     const params = useParams();
     const id = params?.id;
-
     const router = useRouter();
+
     const [item, setItem] = useState<Item | null>(null);
     const [startDate, setStartDate] = useState("");
-    const [durationDays, setDurationDays] = useState(1);
+    const [startTime, setStartTime] = useState("");
+    const [endDate, setEndDate] = useState("");
+    const [endTime, setEndTime] = useState("");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(true);
 
@@ -24,35 +26,59 @@ export default function AlugarPage() {
         setLoading(true);
         fetch(`/api/items/${id}`)
             .then((res) => {
-                if (!res.ok) {
-                    throw new Error("Item não encontrado.");
-                }
+                if (!res.ok) throw new Error("Item não encontrado.");
                 return res.json();
             })
-            .then((data) => {
-                setItem(data);
-                setLoading(false);
-            })
-            .catch((err) => {
-                console.error("Erro ao carregar item:", err);
-                setError("Não foi possível carregar os detalhes do item.");
-                setLoading(false);
-            });
+            .then(data => { setItem(data); setLoading(false); })
+            .catch(err => { console.error("Erro ao carregar item:", err); setError("Não foi possível carregar os detalhes do item."); setLoading(false); });
     }, [id]);
 
-    const totalPrice = useMemo(() => {
-        if (item && durationDays > 0) {
-            return item.pricePerDay * durationDays;
+    const calculateTotalPrice = useMemo(() => {
+        if (!item || !startDate || !startTime || !endDate || !endTime) return 0;
+
+        const startDateTime = new Date(`${startDate}T${startTime}`);
+        const endDateTime = new Date(`${endDate}T${endTime}`);
+
+        // Validação básica para garantir que a data de término não seja anterior à de início
+        if (endDateTime <= startDateTime) return 0;
+
+        const durationMs = endDateTime.getTime() - startDateTime.getTime();
+        const durationHours = durationMs / (1000 * 60 * 60);
+
+        // Se o aluguel for por horas e for inferior a 24h
+        if (durationHours <= 24) {
+            // Assumindo que você quer cobrar 1 dia se for no mesmo dia, ou a fração se for por hora.
+            // Aqui, vou cobrar o valor de 1 dia se for até 24h (mesmo que seja só algumas horas)
+            // Se você quiser cobrar por hora, precisará de um `pricePerHour` no seu `Item`
+            return item.pricePerDay; // Cobra 1 dia se for até 24 horas
+        } else {
+            // Calcula o número de dias completos + a fração de dia
+            const fullDays = Math.floor(durationHours / 24);
+            const remainingHours = durationHours % 24;
+
+            let total = fullDays * item.pricePerDay;
+            if (remainingHours > 0) {
+                // Adiciona o valor de mais um dia se houver horas restantes, mesmo que seja 1 hora.
+                // OU, se você tiver um pricePerHour, calcularia: total += remainingHours * pricePerHour;
+                total += item.pricePerDay;
+            }
+            return total;
         }
-        return 0;
-    }, [item, durationDays]);
+    }, [item, startDate, startTime, endDate, endTime]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
 
-        if (!startDate || durationDays < 1) {
-            return setError("Por favor, preencha a data de início e a duração em dias.");
+        if (!startDate || !startTime || !endDate || !endTime) {
+            return setError("Por favor, preencha a data e hora de início e término.");
+        }
+
+        const startDateTime = new Date(`${startDate}T${startTime}`);
+        const endDateTime = new Date(`${endDate}T${endTime}`);
+
+        if (endDateTime <= startDateTime) {
+            return setError("A data e hora de término deve ser posterior à data e hora de início.");
         }
 
         if (!item) {
@@ -62,21 +88,16 @@ export default function AlugarPage() {
         try {
             const userData = JSON.parse(localStorage.getItem("userData") || "{}");
             const userId = Number(userData?.user?.id);
-            if (!userId) {
-                router.push('/login'); // Redireciona para login se não autenticado
-                return setError("Usuário não autenticado. Redirecionando para o login.");
-            }
+            if (!userId) { router.push('/login'); return setError("Usuário não autenticado. Redirecionando para o login."); }
 
             const itemId = Number(id);
-            if (!itemId) {
-                return setError("ID do item inválido.");
+            if (!itemId) return setError("ID do item inválido.");
+
+            // Recalcula o preço final para garantir consistência
+            const finalTotalPrice = calculateTotalPrice;
+            if (finalTotalPrice <= 0) {
+                return setError("Não foi possível calcular o preço total. Verifique as datas e horas.");
             }
-
-            const start = new Date(startDate + 'T00:00:00');
-            const end = new Date(start);
-            end.setDate(start.getDate() + durationDays);
-
-            const finalTotalPrice = item.pricePerDay * durationDays;
 
             const res = await fetch("/api/orders", {
                 method: "POST",
@@ -84,17 +105,15 @@ export default function AlugarPage() {
                 body: JSON.stringify({
                     userId,
                     itemId,
-                    startDate: start.toISOString(),
-                    endDate: end.toISOString(),
+                    startDate: startDateTime.toISOString(), // Envia como ISO string
+                    endDate: endDateTime.toISOString(),     // Envia como ISO string
                     totalPrice: finalTotalPrice,
                     status: "pending",
                 }),
             });
 
             const data = await res.json();
-            if (!res.ok) {
-                return setError(data.error || "Ocorreu um erro ao criar o pedido. Tente novamente.");
-            }
+            if (!res.ok) return setError(data.error || "Ocorreu um erro ao criar o pedido. Tente novamente.");
 
             router.push("/meus-pedidos");
         } catch (err) {
@@ -103,113 +122,98 @@ export default function AlugarPage() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-[#417FF2] flex items-center justify-center">
-                <p className="text-white text-2xl font-semibold animate-pulse">Carregando detalhes do item...</p>
-            </div>
-        );
-    }
+    if (loading) return (<div className="min-h-screen bg-[#417FF2] flex items-center justify-center"><p className="text-white text-2xl font-medium animate-pulse">Carregando...</p></div>);
+    if (error && !item) return (<div className="min-h-screen bg-[#417FF2] flex items-center justify-center"><p className="text-red-300 text-2xl font-medium text-center px-4">{error}</p></div>);
+    if (!id || Array.isArray(id) || !item) return (<div className="min-h-screen bg-[#417FF2] flex items-center justify-center"><p className="text-red-300 text-2xl font-medium text-center px-4">Item inválido.</p></div>);
 
-    if (error && !item) {
-        return (
-            <div className="min-h-screen bg-[#417FF2] flex items-center justify-center">
-                <p className="text-red-300 text-2xl font-semibold text-center px-4">{error}</p>
-            </div>
-        );
-    }
-
-    if (!id || Array.isArray(id) || !item) {
-        return (
-            <div className="min-h-screen bg-[#417FF2] flex items-center justify-center">
-                <p className="text-red-300 text-2xl font-semibold text-center px-4">
-                    ID do item inválido ou item não encontrado.
-                </p>
-            </div>
-        );
-    }
+    // Obter a data e hora atual para definir um valor mínimo nos campos
+    const now = new Date();
+    const minDate = now.toISOString().split('T')[0];
+    const minTime = now.toTimeString().split(':').slice(0, 2).join(':');
 
     return (
-        <div className="min-h-screen bg-[#417FF2] py-16 px-4 flex flex-col items-center justify-center font-sans">
-            <div className="bg-white rounded-2xl shadow-2xl p-10 w-full max-w-xl space-y-8 animate-fade-in-up">
-                {/* Título Principal */}
-                <h2 className="text-4xl font-extrabold text-[#417FF2] text-center mb-8 tracking-tight">
-                    Alugar <span className="block mt-1">{item.name}</span>
-                </h2>
-
-                {/* Detalhes do Item - Em destaque */}
-                <div className="bg-gradient-to-br from-[#417FF2] to-[#355ec9] p-6 rounded-xl text-white shadow-lg text-center">
-                    <h3 className="text-2xl font-bold mb-2">{item.name}</h3>
-                    <p className="text-gray-100 text-sm mb-4">{item.description}</p>
-                    <p className="text-xl font-bold">
-                        Valor por dia: <span className="text-green-500 text-border-1">R$ {item.pricePerDay.toFixed(2)}</span>
-                    </p>
-                    <p className="text-md mt-1">
-                        Caução: <span className="font-semibold">R$ {item.securityDeposit.toFixed(2)}</span>
-                    </p>
+        <div className="min-h-screen bg-[#417FF2] py-16 px-4 flex flex-col items-center justify-center">
+            <div className="bg-white rounded-3xl shadow-2xl p-0 w-full max-w-xl overflow-hidden flex flex-col md:flex-row animate-fade-in-down">
+                {/* Lado Esquerdo - Detalhes do Item */}
+                <div className="bg-[#417FF2] text-white p-8 md:w-1/2 flex flex-col justify-center items-center text-center">
+                    <h3 className="text-3xl font-extrabold mb-2">{item.name}</h3>
+                    <p className="text-base text-blue-100 mb-4">{item.description}</p>
+                    <div className="border-t border-blue-300 w-2/3 pt-4">
+                        <p className="text-xl font-bold">R$ {item.pricePerDay.toFixed(2)} / dia</p>
+                        <p className="text-sm mt-1">Caução: R$ {item.securityDeposit.toFixed(2)}</p>
+                    </div>
                 </div>
 
-                {/* Campos do Formulário */}
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label htmlFor="startDate" className="block text-[#417FF2] text-lg font-semibold mb-2">
-                            Quando você quer começar?
-                        </label>
-                        <input
-                            id="startDate"
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => setStartDate(e.target.value)}
-                            className="w-full p-3 border-2 border-[#417FF2] rounded-lg text-gray-800 focus:outline-none focus:ring-4 focus:ring-[#417FF2]/30 transition-all duration-300 ease-in-out"
-                            required
-                        />
-                    </div>
-
-                    <div>
-                        <label htmlFor="durationDays" className="block text-[#417FF2] text-lg font-semibold mb-2">
-                            Por quantos dias?
-                        </label>
-                        <input
-                            id="durationDays"
-                            type="number"
-                            value={durationDays}
-                            onChange={(e) => setDurationDays(Number(e.target.value))}
-                            min={1}
-                            className="w-full p-3 border-2 border-[#417FF2] rounded-lg text-gray-800 focus:outline-none focus:ring-4 focus:ring-[#417FF2]/30 transition-all duration-300 ease-in-out"
-                            required
-                        />
-                    </div>
-
-                    {/* Total a Pagar - Destaque em Azul */}
-                    {durationDays > 0 && item && (
-                        <div className="bg-[#eaf1fb] p-6 rounded-xl border border-[#c1d1ee] text-center shadow-inner">
-                            <p className="text-xl text-[#417FF2] font-semibold mb-2">
-                                Total Estimado do Aluguel:
-                            </p>
-                            <p className="text-5xl font-extrabold text-[#417FF2] tracking-tight">
-                                R$ {totalPrice.toFixed(2)}
-                            </p>
-                            <p className="text-sm text-gray-600 mt-3">
-                                * Este valor refere-se apenas ao período de aluguel. A caução é um valor à parte.
-                            </p>
+                {/* Lado Direito - Formulário */}
+                <div className="p-8 md:w-1/2 space-y-6">
+                    <h2 className="text-3xl font-bold text-[#417FF2] text-center mb-4">Confirmar Aluguel</h2>
+                    <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Data e Hora de Início */}
+                        <div>
+                            <label htmlFor="startDate" className="block text-[#417FF2] font-semibold mb-2">Início do Aluguel</label>
+                            <div className="flex gap-2">
+                                <input
+                                    id="startDate"
+                                    type="date"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    min={minDate} // Impede seleção de datas passadas
+                                    className="w-1/2 p-3 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#417FF2] focus:border-transparent transition"
+                                    required
+                                />
+                                <input
+                                    id="startTime"
+                                    type="time"
+                                    value={startTime}
+                                    onChange={(e) => setStartTime(e.target.value)}
+                                    className="w-1/2 p-3 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#417FF2] focus:border-transparent transition"
+                                    required
+                                />
+                            </div>
                         </div>
-                    )}
 
-                    {/* Mensagem de Erro */}
-                    {error && (
-                        <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 text-center text-sm font-medium animate-shake">
-                            {error}
+                        {/* Data e Hora de Término */}
+                        <div>
+                            <label htmlFor="endDate" className="block text-[#417FF2] font-semibold mb-2">Término do Aluguel</label>
+                            <div className="flex gap-2">
+                                <input
+                                    id="endDate"
+                                    type="date"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    min={startDate || minDate} // Impede seleção de datas passadas ou anterior à data de início
+                                    className="w-1/2 p-3 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#417FF2] focus:border-transparent transition"
+                                    required
+                                />
+                                <input
+                                    id="endTime"
+                                    type="time"
+                                    value={endTime}
+                                    onChange={(e) => setEndTime(e.target.value)}
+                                    className="w-1/2 p-3 border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#417FF2] focus:border-transparent transition"
+                                    required
+                                />
+                            </div>
                         </div>
-                    )}
 
-                    {/* Botão de Confirmação */}
-                    <button
-                        type="submit"
-                        className="w-full bg-[#417FF2] text-white py-4 rounded-xl hover:bg-[#355ec9] transition-all duration-300 font-bold text-xl shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-[#417FF2]/50 focus:ring-offset-2 focus:ring-offset-white"
-                    >
-                        Confirmar Aluguel Agora
-                    </button>
-                </form>
+                        {calculateTotalPrice > 0 && item && (
+                            <div className="bg-[#eaf1fb] p-4 rounded-lg text-center border border-[#c1d1ee]">
+                                <p className="text-lg text-[#417FF2] font-medium mb-1">Total Estimado:</p>
+                                <p className="text-4xl font-extrabold text-[#417FF2]">R$ {calculateTotalPrice.toFixed(2)}</p>
+                                <p className="text-sm text-gray-600 mt-2">* Caução não inclusa neste valor.</p>
+                            </div>
+                        )}
+
+                        {error && <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-sm text-center">{error}</div>}
+
+                        <button
+                            type="submit"
+                            className="w-full bg-[#417FF2] text-white py-3 rounded-lg hover:bg-[#355ec9] transition font-bold text-lg shadow-md"
+                        >
+                            Confirmar Aluguel
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );

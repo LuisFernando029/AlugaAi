@@ -1,120 +1,215 @@
-// // /app/alugar/[id]/page.tsx
-// "use client";
+"use client";
 
-// import { useEffect, useState } from "react";
-// import { useParams, useRouter } from "next/navigation";
-// import { Item } from "@prisma/client";
+import { useEffect, useState, useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Item } from "@prisma/client";
 
-// export default function AlugarPage() {
-//     const params = useParams();
-//     const id = params?.id;
+export default function AlugarPage() {
+    const params = useParams();
+    const id = params?.id;
 
-//     const router = useRouter();
-//     const [item, setItem] = useState<Item | null>(null);
-//     const [startDate, setStartDate] = useState("");
-//     const [durationDays, setDurationDays] = useState(1);
-//     const [error, setError] = useState("");
+    const router = useRouter();
+    const [item, setItem] = useState<Item | null>(null);
+    const [startDate, setStartDate] = useState("");
+    const [durationDays, setDurationDays] = useState(1);
+    const [error, setError] = useState("");
+    const [loading, setLoading] = useState(true);
 
-//     useEffect(() => {
-//         if (!id || Array.isArray(id)) return;
-//         fetch(`/api/items/${id}`)
-//             .then((res) => res.json())
-//             .then(setItem);
-//     }, [id]);
+    useEffect(() => {
+        if (!id || Array.isArray(id)) {
+            setLoading(false);
+            return;
+        }
 
-//     const handleSubmit = async (e: React.FormEvent) => {
-//         e.preventDefault();
-//         setError("");
+        setLoading(true);
+        fetch(`/api/items/${id}`)
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error("Item não encontrado.");
+                }
+                return res.json();
+            })
+            .then((data) => {
+                setItem(data);
+                setLoading(false);
+            })
+            .catch((err) => {
+                console.error("Erro ao carregar item:", err);
+                setError("Não foi possível carregar os detalhes do item.");
+                setLoading(false);
+            });
+    }, [id]);
 
-//         if (!startDate || durationDays < 1) {
-//             return setError("Preencha todos os campos corretamente.");
-//         }
+    const totalPrice = useMemo(() => {
+        if (item && durationDays > 0) {
+            return item.pricePerDay * durationDays;
+        }
+        return 0;
+    }, [item, durationDays]);
 
-//         try {
-//             const userData = JSON.parse(localStorage.getItem("userData") || "{}");
-//             const userId = userData?.user?.id;
-//             if (!userId) return setError("Usuário não autenticado.");
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError("");
 
-//             const res = await fetch("/api/orders", {
-//                 method: "POST",
-//                 headers: { "Content-Type": "application/json" },
-//                 body: JSON.stringify({
-//                     itemId: id,
-//                     userId,
-//                     startDate,
-//                     durationDays
-//                 })
-//             });
+        if (!startDate || durationDays < 1) {
+            return setError("Por favor, preencha a data de início e a duração em dias.");
+        }
 
-//             const data = await res.json();
-//             if (!res.ok) {
-//                 return setError(data.error || "Erro ao criar pedido.");
-//             }
+        if (!item) {
+            return setError("Item não carregado. Tente recarregar a página.");
+        }
 
-//             router.push("/home");
-//         } catch (err) {
-//             setError("Erro no servidor.");
-//         }
-//     };
+        try {
+            const userData = JSON.parse(localStorage.getItem("userData") || "{}");
+            const userId = Number(userData?.user?.id);
+            if (!userId) {
+                router.push('/login');
+                return setError("Usuário não autenticado. Redirecionando para o login.");
+            }
 
-//     if (!id || Array.isArray(id)) {
-//         return <div className="text-center text-red-500 mt-10">ID inválido.</div>;
-//     }
+            const itemId = Number(id);
+            if (!itemId) {
+                return setError("ID do item inválido.");
+            }
 
-//     if (!item) {
-//         return <p className="text-white text-center mt-10">Carregando...</p>;
-//     }
+            const start = new Date(startDate + 'T00:00:00');
+            const end = new Date(start);
+            end.setDate(start.getDate() + durationDays);
 
-//     return (
-//         <div className="min-h-screen bg-[#417FF2] py-12 px-4 flex items-start justify-center">
-//             <form
-//                 onSubmit={handleSubmit}
-//                 className="bg-white rounded shadow p-6 w-full max-w-xl space-y-4"
-//             >
-//                 <h2 className="text-2xl font-bold text-[#417FF2]">Alugar Item</h2>
+            const finalTotalPrice = item.pricePerDay * durationDays;
 
-//                 <div>
-//                     <h3 className="text-lg font-semibold text-[#417FF2]">{item.name}</h3>
-//                     <p className="text-sm text-gray-600">{item.description}</p>
-//                     <p className="text-sm text-gray-700 mt-1">
-//                         R$ {item.pricePerDay.toFixed(2)} / dia | Caução: R$ {item.securityDeposit.toFixed(2)}
-//                     </p>
-//                 </div>
+            const res = await fetch("/api/orders", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    userId,
+                    itemId,
+                    startDate: start.toISOString(),
+                    endDate: end.toISOString(),
+                    totalPrice: finalTotalPrice,
+                    status: "pending",
+                }),
+            });
 
-//                 <div>
-//                     <label className="block text-[#417FF2] font-medium mb-1">Data de Início:</label>
-//                     <input
-//                         type="date"
-//                         value={startDate}
-//                         onChange={(e) => setStartDate(e.target.value)}
-//                         className="w-full p-2 border rounded text-[#417FF2] focus:ring-1 focus:ring-[#417FF2] outline-none"
-//                         required
-//                     />
-//                 </div>
+            const data = await res.json();
+            if (!res.ok) {
+                return setError(data.error || "Ocorreu um erro ao criar o pedido. Tente novamente.");
+            }
 
-//                 <div>
-//                     <label className="block text-[#417FF2] font-medium mb-1">Quantidade de dias:</label>
-//                     <input
-//                         type="number"
-//                         value={durationDays}
-//                         onChange={(e) => setDurationDays(Number(e.target.value))}
-//                         min={1}
-//                         className="w-full p-2 border rounded text-[#417FF2] focus:ring-1 focus:ring-[#417FF2] outline-none"
-//                         required
-//                     />
-//                 </div>
+            router.push("/meus-pedidos");
+        } catch (err) {
+            console.error("Erro ao processar pedido:", err);
+            setError("Erro interno do servidor. Por favor, tente novamente mais tarde.");
+        }
+    };
 
-//                 {error && (
-//                     <p className="text-red-500 text-sm">{error}</p>
-//                 )}
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-[#417FF2] flex items-center justify-center">
+                <p className="text-white text-2xl font-light tracking-wide animate-pulse">Carregando detalhes do item...</p>
+            </div>
+        );
+    }
 
-//                 <button
-//                     type="submit"
-//                     className="w-full bg-[#417FF2] text-white py-2 rounded hover:bg-[#355ec9] transition font-semibold"
-//                 >
-//                     Confirmar Aluguel
-//                 </button>
-//             </form>
-//         </div>
-//     );
-// }
+    if (error && !item) {
+        return (
+            <div className="min-h-screen bg-[#417FF2] flex items-center justify-center">
+                <p className="text-red-300 text-2xl font-light text-center px-4">{error}</p>
+            </div>
+        );
+    }
+
+    if (!id || Array.isArray(id) || !item) {
+        return (
+            <div className="min-h-screen bg-[#417FF2] flex items-center justify-center">
+                <p className="text-red-300 text-2xl font-light text-center px-4">
+                    ID do item inválido ou item não encontrado.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-[#417FF2] py-20 px-4 flex flex-col items-center justify-center font-sans">
+            <div className="bg-white rounded-3xl shadow-2xl p-10 w-full max-w-xl space-y-10 animate-fade-in">
+                {/* Título Principal */}
+                <h2 className="text-4xl font-light text-[#417FF2] text-center tracking-tight leading-tight">
+                    Confirmar <br /><span className="font-semibold">{item.name}</span>
+                </h2>
+
+                {/* Detalhes do Item - Seção de destaque com borda sutil */}
+                <div className="border border-gray-200 rounded-xl p-6 bg-white shadow-inner flex flex-col items-center">
+                    <p className="text-lg text-gray-700 mb-2">{item.description}</p>
+                    <p className="text-xl font-medium text-gray-800">
+                        Preço por dia: <span className="text-[#417FF2] font-bold">R$ {item.pricePerDay.toFixed(2)}</span>
+                    </p>
+                    <p className="text-md text-gray-600 mt-1">
+                        Caução: <span className="font-semibold">R$ {item.securityDeposit.toFixed(2)}</span>
+                    </p>
+                </div>
+
+                {/* Campos do Formulário */}
+                <form onSubmit={handleSubmit} className="space-y-8">
+                    <div>
+                        <label htmlFor="startDate" className="block text-[#417FF2] text-lg font-medium mb-3">
+                            Data de Início do Aluguel
+                        </label>
+                        <input
+                            id="startDate"
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="w-full p-4 border-b-2 border-b-[#417FF2] rounded-t-lg bg-gray-50 text-gray-800 text-lg focus:outline-none focus:bg-white focus:shadow-md transition-all duration-300 ease-in-out appearance-none"
+                            required
+                        />
+                    </div>
+
+                    <div>
+                        <label htmlFor="durationDays" className="block text-[#417FF2] text-lg font-medium mb-3">
+                            Duração (em dias)
+                        </label>
+                        <input
+                            id="durationDays"
+                            type="number"
+                            value={durationDays}
+                            onChange={(e) => setDurationDays(Number(e.target.value))}
+                            min={1}
+                            className="w-full p-4 border-b-2 border-b-[#417FF2] rounded-t-lg bg-gray-50 text-gray-800 text-lg focus:outline-none focus:bg-white focus:shadow-md transition-all duration-300 ease-in-out"
+                            required
+                        />
+                    </div>
+
+                    {/* Total a Pagar - Destacado com uma cor de fundo sutil */}
+                    {durationDays > 0 && item && (
+                        <div className="bg-[#f0f8ff] p-8 rounded-xl border border-[#d0e0f7] text-center shadow-lg transform hover:scale-105 transition-transform duration-300">
+                            <p className="text-2xl text-[#417FF2] font-light mb-2">
+                                Valor Total Estimado
+                            </p>
+                            <p className="text-6xl font-extrabold text-[#417FF2] tracking-tighter">
+                                R$ {totalPrice.toFixed(2)}
+                            </p>
+                            <p className="text-sm text-gray-600 mt-4 leading-relaxed">
+                                * Este valor inclui apenas o custo diário do item pelo período selecionado. <br />A caução é um valor à parte, pago no momento da retirada.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Mensagem de Erro */}
+                    {error && (
+                        <div className="p-4 bg-red-50 text-red-700 rounded-lg border border-red-200 text-center text-base font-normal animate-shake">
+                            {error}
+                        </div>
+                    )}
+
+                    {/* Botão de Confirmação */}
+                    <button
+                        type="submit"
+                        className="w-full bg-[#417FF2] text-white py-5 rounded-xl hover:bg-[#355ec9] transition-all duration-300 font-bold text-xl tracking-wide uppercase shadow-lg hover:shadow-xl focus:outline-none focus:ring-4 focus:ring-[#417FF2]/60 focus:ring-offset-2 focus:ring-offset-white"
+                    >
+                        Confirmar Aluguel
+                    </button>
+                </form>
+            </div>
+        </div>
+    );
+}
