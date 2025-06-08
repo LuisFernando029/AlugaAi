@@ -13,57 +13,74 @@ type Item = {
 
 export default function AdminPage() {
     const [items, setItems] = useState<Item[]>([]);
+    // Definimos o storeId como 7 para o teste
+    const [storeId, setStoreId] = useState<number | null>(7);
     const [newItem, setNewItem] = useState({
         name: "",
         description: "",
         pricePerDay: 0,
         securityDeposit: 0,
         isAvailable: true,
-        storeId: 1, // pode ser dinâmico conforme o contexto
     });
 
     const [editingId, setEditingId] = useState<number | null>(null);
 
-    // Buscar itens
-    useEffect(() => {
-        const fetchItems = async () => {
-            try {
-                const res = await fetch("/api/items");
-                if (!res.ok) throw new Error("Erro ao buscar os itens");
-                const data = await res.json();
-                setItems(data);
-            } catch (err) {
-                console.error("Erro ao carregar itens:", err);
+ useEffect(() => {
+    const loadStoreId = () => {
+        try {
+            if (typeof window !== "undefined") {
+                const storedData = localStorage.getItem("storeAuth");
+                if (storedData) {
+                    const parsed = JSON.parse(storedData);
+                    if (parsed?.store?.id) {
+                        return parsed.store.id;
+                    }
+                }
             }
-        };
+        } catch (error) {
+            console.error("Erro ao ler storeAuth:", error);
+        }
+        return null;
+    };
 
-        fetchItems();
-    }, []);
+    const storeIdFromStorage = loadStoreId();
+    setStoreId(storeIdFromStorage);
+}, []);
+
+
 
     const handleCreate = async () => {
+        if (!storeId) {
+            console.error("ID da loja não disponível para criar item.");
+            return;
+        }
         try {
             const res = await fetch("/api/items", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newItem),
+                body: JSON.stringify({ ...newItem, storeId: storeId }), // Inclui storeId na criação
             });
 
             if (!res.ok) throw new Error("Erro ao criar item");
 
             const created = await res.json();
             setItems([...items, created]);
-            setNewItem({ name: "", description: "", pricePerDay: 0, securityDeposit: 0, isAvailable: true, storeId: 1 });
+            setNewItem({ name: "", description: "", pricePerDay: 0, securityDeposit: 0, isAvailable: true });
         } catch (err) {
             console.error(err);
         }
     };
 
     const handleUpdate = async (id: number) => {
+        if (!storeId) {
+            console.error("ID da loja não disponível para atualizar item.");
+            return;
+        }
         try {
             const res = await fetch(`/api/items/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(newItem),
+                body: JSON.stringify({ ...newItem, storeId: storeId }), // Inclui storeId na atualização
             });
 
             if (!res.ok) throw new Error("Erro ao atualizar item");
@@ -71,16 +88,22 @@ export default function AdminPage() {
             const updated = await res.json();
             setItems(items.map((item) => (item.id === id ? updated : item)));
             setEditingId(null);
-            setNewItem({ name: "", description: "", pricePerDay: 0, securityDeposit: 0, isAvailable: true, storeId: 1 });
+            setNewItem({ name: "", description: "", pricePerDay: 0, securityDeposit: 0, isAvailable: true });
         } catch (err) {
             console.error(err);
         }
     };
 
     const handleDelete = async (id: number) => {
+        if (!storeId) {
+            console.error("ID da loja não disponível para deletar item.");
+            return;
+        }
         try {
             const res = await fetch(`/api/items/${id}`, {
                 method: "DELETE",
+                headers: { "Content-Type": "application/json" }, // Adicionado cabeçalho para enviar body
+                body: JSON.stringify({ storeId: storeId }), // Envia storeId para validação no backend
             });
 
             if (!res.ok) throw new Error("Erro ao deletar item");
@@ -93,7 +116,7 @@ export default function AdminPage() {
 
     const handleEdit = (item: Item) => {
         setEditingId(item.id);
-        setNewItem({ ...item, storeId: 1 });
+        setNewItem({ ...item });
     };
 
     return (
@@ -121,7 +144,7 @@ export default function AdminPage() {
                         className="w-full p-2 border rounded text-[#417FF2] focus:border-[#417FF2] focus:ring-[#417FF2] focus:ring-1 outline-none"
                     />
                     <div className="flex gap-4">
-                         <label className="text-[#417FF2] mt-2 flex-shrink-0">Valor por dia</label>
+                        <label className="text-[#417FF2] mt-2 flex-shrink-0">Valor por dia</label>
                         <input
                             type="number"
                             placeholder="Preço por dia"
@@ -129,7 +152,7 @@ export default function AdminPage() {
                             onChange={(e) => setNewItem({ ...newItem, pricePerDay: parseFloat(e.target.value) })}
                             className="w-full p-2 border rounded text-[#417FF2] focus:border-[#417FF2] focus:ring-[#417FF2] focus:ring-1 outline-none"
                         />
-                         <label className="text-[#417FF2] mt-2">Calção</label>
+                        <label className="text-[#417FF2] mt-2">Caução</label>
                         <input
                             type="number"
                             placeholder="Caução"
@@ -150,6 +173,7 @@ export default function AdminPage() {
                     <button
                         onClick={() => (editingId ? handleUpdate(editingId) : handleCreate())}
                         className="px-4 py-2 bg-[#417FF2] text-white rounded hover:bg-[#355ec9] transition"
+                        disabled={!storeId}
                     >
                         {editingId ? "Atualizar Item" : "Adicionar Item"}
                     </button>

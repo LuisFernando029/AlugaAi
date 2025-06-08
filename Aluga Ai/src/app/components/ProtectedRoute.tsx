@@ -1,18 +1,22 @@
+// components/ProtectedRoute.tsx
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "../context/UserContext";
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user } = useUser();
+  const { user, loading } = useUser();
   const router = useRouter();
 
   useEffect(() => {
-    if (!user) {
+    if (!loading && !user) {
       router.push("/login");
     }
-  }, [user]);
+  }, [user, loading]);
 
+  if (loading) {
+    return <div className="text-white text-center mt-10">Carregando...</div>;
+  }
 
   if (!user) return null;
 
