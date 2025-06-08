@@ -1,3 +1,4 @@
+// pages\api\orders\index.ts
 import { NextApiRequest, NextApiResponse } from "next";
 import prisma from "../../../prisma";
 
