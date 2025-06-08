@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+// Importa o hook useRouter do Next.js para redirecionamento
+import { useRouter } from "next/navigation"; 
 
 type Item = {
     id: number;
@@ -13,8 +15,7 @@ type Item = {
 
 export default function AdminPage() {
     const [items, setItems] = useState<Item[]>([]);
-    // Definimos o storeId como 7 para o teste
-    const [storeId, setStoreId] = useState<number | null>(7);
+    const [storeId, setStoreId] = useState<number | null>(null);
     const [newItem, setNewItem] = useState({
         name: "",
         description: "",
@@ -24,33 +25,58 @@ export default function AdminPage() {
     });
 
     const [editingId, setEditingId] = useState<number | null>(null);
+    const router = useRouter(); // Inicializa o router
 
- useEffect(() => {
-    const loadStoreId = () => {
-        try {
-            if (typeof window !== "undefined") {
-                const storedData = localStorage.getItem("storeAuth");
-                if (storedData) {
-                    const parsed = JSON.parse(storedData);
-                    if (parsed?.store?.id) {
-                        return parsed.store.id;
+    // useEffect para carregar o storeId do localStorage e verificar a autenticação
+    useEffect(() => {
+        const loadStoreId = () => {
+            try {
+                if (typeof window !== "undefined") {
+                    const storedData = localStorage.getItem("userData"); // Sua chave no localStorage
+                    if (storedData) {
+                        const parsed = JSON.parse(storedData);
+                        // Verifica se existe o objeto 'store' e se ele tem um 'id' numérico
+                        if (parsed?.store?.id && typeof parsed.store.id === 'number') {
+                            return parsed.store.id;
+                        }
                     }
                 }
+            } catch (error) {
+                console.error("Erro ao ler 'userData' do localStorage:", error);
             }
-        } catch (error) {
-            console.error("Erro ao ler storeAuth:", error);
+            return null; // Retorna null se não for um lojista ou houver erro
+        };
+
+        const currentStoreId = loadStoreId();
+
+        if (currentStoreId) {
+            // Se encontrou um storeId válido, define o estado e busca os itens
+            setStoreId(currentStoreId);
+            const fetchItems = async (id: number) => {
+                try {
+                    const res = await fetch(`/api/items?storeId=${id}`);
+                    if (!res.ok) {
+                        const errorData = await res.json();
+                        throw new Error(`Erro ao buscar os itens: ${res.status} - ${errorData.error || res.statusText}`);
+                    }
+                    const data = await res.json();
+                    setItems(data);
+                } catch (err) {
+                    console.error("Erro ao carregar itens:", err);
+                }
+            };
+            fetchItems(currentStoreId);
+        } else {
+            // Se storeId não foi encontrado, significa que não é um lojista ou não está logado
+            console.warn("Acesso negado: ID da loja não encontrado no localStorage. Redirecionando...");
+            // Redireciona para a página inicial ou de login
+            router.push('/'); 
+            // Opcional: router.push('/login'); se você tiver uma página de login dedicada para lojistas
         }
-        return null;
-    };
-
-    const storeIdFromStorage = loadStoreId();
-    setStoreId(storeIdFromStorage);
-}, []);
-
-
+    }, [router]); // Adiciona 'router' como dependência para evitar avisos do ESLint
 
     const handleCreate = async () => {
-        if (!storeId) {
+        if (storeId === null || storeId === undefined) {
             console.error("ID da loja não disponível para criar item.");
             return;
         }
@@ -58,21 +84,25 @@ export default function AdminPage() {
             const res = await fetch("/api/items", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...newItem, storeId: storeId }), // Inclui storeId na criação
+                body: JSON.stringify({ ...newItem, storeId: storeId }),
             });
 
-            if (!res.ok) throw new Error("Erro ao criar item");
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(`Erro ao criar item: ${res.status} - ${errorData.error || res.statusText}`);
+            }
 
             const created = await res.json();
             setItems([...items, created]);
             setNewItem({ name: "", description: "", pricePerDay: 0, securityDeposit: 0, isAvailable: true });
         } catch (err) {
-            console.error(err);
+            console.error("Erro ao criar item:", err);
+            alert(`Falha ao criar item: ${err instanceof Error ? err.message : String(err)}`);
         }
     };
 
     const handleUpdate = async (id: number) => {
-        if (!storeId) {
+        if (storeId === null || storeId === undefined) {
             console.error("ID da loja não disponível para atualizar item.");
             return;
         }
@@ -80,37 +110,45 @@ export default function AdminPage() {
             const res = await fetch(`/api/items/${id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...newItem, storeId: storeId }), // Inclui storeId na atualização
+                body: JSON.stringify({ ...newItem, storeId: storeId }),
             });
 
-            if (!res.ok) throw new Error("Erro ao atualizar item");
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(`Erro ao atualizar item: ${res.status} - ${errorData.error || res.statusText}`);
+            }
 
             const updated = await res.json();
             setItems(items.map((item) => (item.id === id ? updated : item)));
             setEditingId(null);
             setNewItem({ name: "", description: "", pricePerDay: 0, securityDeposit: 0, isAvailable: true });
         } catch (err) {
-            console.error(err);
+            console.error("Erro ao atualizar item:", err);
+            alert(`Falha ao atualizar item: ${err instanceof Error ? err.message : String(err)}`);
         }
     };
 
     const handleDelete = async (id: number) => {
-        if (!storeId) {
+        if (storeId === null || storeId === undefined) {
             console.error("ID da loja não disponível para deletar item.");
             return;
         }
         try {
             const res = await fetch(`/api/items/${id}`, {
                 method: "DELETE",
-                headers: { "Content-Type": "application/json" }, // Adicionado cabeçalho para enviar body
-                body: JSON.stringify({ storeId: storeId }), // Envia storeId para validação no backend
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ storeId: storeId }),
             });
 
-            if (!res.ok) throw new Error("Erro ao deletar item");
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(`Erro ao deletar item: ${res.status} - ${errorData.error || res.statusText}`);
+            }
 
             setItems(items.filter((item) => item.id !== id));
         } catch (err) {
-            console.error(err);
+            console.error("Erro ao deletar item:", err);
+            alert(`Falha ao deletar item: ${err instanceof Error ? err.message : String(err)}`);
         }
     };
 
@@ -173,7 +211,7 @@ export default function AdminPage() {
                     <button
                         onClick={() => (editingId ? handleUpdate(editingId) : handleCreate())}
                         className="px-4 py-2 bg-[#417FF2] text-white rounded hover:bg-[#355ec9] transition"
-                        disabled={!storeId}
+                        disabled={storeId === null}
                     >
                         {editingId ? "Atualizar Item" : "Adicionar Item"}
                     </button>
