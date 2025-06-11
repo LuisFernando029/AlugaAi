@@ -1,6 +1,6 @@
-# 🧢 AlugaAi — Sistema de Aluguel de Itens
+# AlugaAi — Sistema de Aluguel de Itens
 
-Projeto completo de uma plataforma de aluguel de produtos, onde os usuários podem alugar itens com facilidade.
+Projeto completo interdisciplinar pela faculdade de tecnologia de Praia Grande (FATEC), de uma plataforma de aluguel de produtos, onde os usuários podem alugar itens com facilidade.
 
 ## 📦 Funcionalidades
 
@@ -112,10 +112,10 @@ Feito por:
 
 
  **Caue Caramello**  
-📧 luis.fernando.dev029@gmail.com  
-🔗 [LinkedIn](https://www.linkedin.com/in/luis-fernando-821967216)
+📧 cauecaramello@hotmail.com <br>
+🔗 [LinkedIn](https://www.linkedin.com/in/cauecaramello/)
 
 
  **Paulo Cesar da Cruz**  
-📧 luis.fernando.dev029@gmail.com  
-🔗 [LinkedIn](https://www.linkedin.com/in/luis-fernando-821967216)
+📧 paulocesardacruzpc@gmail.com <br>
+🔗 [LinkedIn](https://www.linkedin.com/in/paulo-cesar-cruz-64650a287/)
