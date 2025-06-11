@@ -90,7 +90,7 @@ export default function MeusPedidos() {
 
   if (error) {
     return (
-      <div className="text-center mt-10 p-6 bg-red-800 text-white rounded-lg shadow-md">
+      <div className="text-center mt-10 p-6 bg-red-800 text-white rounded-lg shadow-md ">
         {error}
       </div>
     );
@@ -98,10 +98,12 @@ export default function MeusPedidos() {
 
   if (orders.length === 0) {
     return (
-      <div className="text-center mt-10 p-6 bg-white bg-opacity-10 rounded-2xl shadow-inner text-white">
+    <div className="flex items-center justify-center min-h-[calc(100vh-400px)]"> 
+    <div className="text-center w-10/12 p-6 bg-white bg-opacity-10 rounded-2xl shadow-inner text-[#417FF2]">
         <p className="text-xl font-light mb-4">Parece que você ainda não alugou nada por aqui!</p>
         <p className="text-lg">Que tal explorar nossos itens disponíveis e começar sua primeira locação?</p>
-      </div>
+    </div>
+</div>
     );
   }
 

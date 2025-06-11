@@ -12,7 +12,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       <Header />
 
 
-      <section className="py-8"> {/* Removi o padding horizontal fixo aqui para o Card gerenciar */}
+      <section className="py-8">
         <h1 className="text-[#F0F0F0] text-3xl font-bold mb-6 text-center sm:text-left ml-4 sm:ml-10">Perto de Você</h1>
 
         <Card /> 
@@ -20,7 +20,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
       <Linha />
 
-      <section className="py-8"> {/* Removi o padding horizontal fixo aqui para o MeusPedidos gerenciar */}
+      <section className="py-8"> 
         <h1 className="text-[#F0F0F0] text-3xl font-bold mb-6 text-center sm:text-left ml-4 sm:ml-10">Alugados Recentemente</h1>
 
         <MeusPedidos /> 

@@ -1,7 +1,7 @@
 // app/devolver/[id]/page.tsx
 "use client";
 
-import { useParams, useRouter } from "next/navigation"; // Importe useRouter
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Header from "@/app/components/Header";
@@ -26,11 +26,11 @@ interface OrderItem {
 
 export default function DevolverItemPage() {
   const { id } = useParams() as { id: string };
-  const router = useRouter(); 
+  const router = useRouter();
   const [order, setOrder] = useState<OrderItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isProcessingPayment, setIsProcessingPayment] = useState(false); // Novo estado para controlar o processamento do pagamento
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -109,7 +109,7 @@ export default function DevolverItemPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...order, // Envia os dados existentes do pedido
+          ...order, 
           status: "concluido", // Altera apenas o status
         }),
       });
@@ -121,13 +121,23 @@ export default function DevolverItemPage() {
         );
       }
 
-      // Se tudo ocorreu bem, atualiza o estado local e redireciona ou exibe mensagem
+      // 3. Marcar o item como DISPONÍVEL novamente
+      const updateItemAvailabilityRes = await fetch(`/api/items/${order.item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isAvailable: true }), // Atualiza para true
+      });
+
+      if (!updateItemAvailabilityRes.ok) {
+        console.error("Falha ao atualizar status do item para disponível.");
+  
+      }
+
       setOrder((prevOrder) => ({ ...prevOrder!, status: "concluido" }));
-      alert("Pagamento realizado e pedido atualizado para 'concluído' com sucesso!");
-      router.push("/meus-pedidos"); // Redireciona para a página de meus pedidos
+      router.push("/success");
     } catch (err: any) {
-      console.error("Erro ao realizar pagamento:", err);
-      setError(err.message || "Ocorreu um erro ao processar o pagamento.");
+      console.error("Erro ao realizar pagamento ou devolver item:", err);
+      setError(err.message || "Ocorreu um erro ao processar a devolução.");
     } finally {
       setIsProcessingPayment(false);
     }
@@ -228,7 +238,7 @@ export default function DevolverItemPage() {
                   ${isProcessingPayment ? "opacity-70 cursor-not-allowed" : "hover:bg-[#355ec9] transition"}`}
                 disabled={isProcessingPayment}
               >
-                {isProcessingPayment ? "Processando..." : "Realizar Pagamento"}
+                {isProcessingPayment ? "Processando..." : "Realizar Pagamento e Devolver"}
               </button>
             )}
 

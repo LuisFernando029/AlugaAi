@@ -76,7 +76,7 @@ export default function AdminPage() {
 				"Acesso negado: ID da loja não encontrado no localStorage. Redirecionando..."
 			);
 			// Redireciona para a página inicial ou de login
-			router.push("/");
+			router.push("/home");
 			// Opcional: router.push('/login'); se você tiver uma página de login dedicada para lojistas
 		}
 	}, [router]); // Adiciona 'router' como dependência para evitar avisos do ESLint
