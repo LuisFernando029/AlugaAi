@@ -1,5 +1,6 @@
 // src/app/success/page.tsx
 "use client";
+export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -11,11 +12,9 @@ export default function SuccessPage() {
   const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
-    // Adicione esta verificação para garantir que o código só rode no lado do cliente
+  
     if (typeof window === 'undefined') {
-      // Se estiver no servidor, saia do useEffect.
-      // A pré-renderização mostrará o estado inicial "Processando confirmação..."
-      // e o código real será executado quando a página for hidratada no cliente.
+
       return; 
     }
 
