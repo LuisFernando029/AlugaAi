@@ -27,8 +27,8 @@ Projeto completo de uma plataforma de aluguel de produtos, onde os usuários pod
 ### 1. Clone o repositório
 
 ```bash
-git clone https://github.com/seu-usuario/nome-do-repo.git
-cd nome-do-repo
+git clone https://github.com/LuisFernando029/AlugaAi.git
+cd AlugaAi
 ```
 
 ### 2. Instale as dependências
