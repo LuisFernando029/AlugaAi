@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation"; // Importe useSearchParams
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function SuccessPage() {
   const router = useRouter();
@@ -11,6 +11,14 @@ export default function SuccessPage() {
   const [processing, setProcessing] = useState(true);
 
   useEffect(() => {
+    // Adicione esta verificação para garantir que o código só rode no lado do cliente
+    if (typeof window === 'undefined') {
+      // Se estiver no servidor, saia do useEffect.
+      // A pré-renderização mostrará o estado inicial "Processando confirmação..."
+      // e o código real será executado quando a página for hidratada no cliente.
+      return; 
+    }
+
     // Tenta obter o orderId do localStorage, que foi setado na página de aluguel/devolução
     const orderId = localStorage.getItem('currentOrderId') || localStorage.getItem('currentOrderIdToReturn');
 
@@ -22,7 +30,7 @@ export default function SuccessPage() {
           throw new Error("Erro ao buscar detalhes do pedido.");
         }
         const orderData = await orderRes.json();
-        const itemId = orderData.item.id; 
+        const itemId = orderData.item.id;
 
         const isReturnSuccess = localStorage.getItem('currentOrderIdToReturn') !== null;
         const targetAvailability = isReturnSuccess ? true : false; // Se veio da devolução, item vira disponível.
@@ -37,7 +45,7 @@ export default function SuccessPage() {
           console.error("Falha ao atualizar a disponibilidade do item.");
           setMessage("Pagamento confirmado, mas houve um problema ao atualizar a disponibilidade do item.");
         } else {
-            setMessage("Pagamento confirmado e disponibilidade do item atualizada!");
+          setMessage("Pagamento confirmado e disponibilidade do item atualizada!");
         }
 
       } catch (err: any) {
@@ -69,36 +77,36 @@ export default function SuccessPage() {
     <div className="min-h-screen bg-[#417FF2] py-16 px-4 flex flex-col items-center justify-center">
       <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-xl text-center flex flex-col items-center justify-center animate-fade-in-down">
         {processing ? (
-            <>
-                <p className="text-xl font-light mb-4 text-[#417FF2]">Processando confirmação...</p>
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#417FF2]"></div>
-            </>
+          <>
+            <p className="text-xl font-light mb-4 text-[#417FF2]">Processando confirmação...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#417FF2]"></div>
+          </>
         ) : (
-            <>
-                <svg
-                    className="w-24 h-24 text-green-500 mb-6"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    ></path>
-                </svg>
-                <h2 className="text-4xl font-extrabold text-[#417FF2] mb-4">
-                    Sucesso!
-                </h2>
-                <p className="text-lg text-gray-700 mb-6">
-                    {message}
-                </p>
-                <p className="text-md text-gray-500">
-                    Você será redirecionado(a) para seus pedidos em breve...
-                </p>
-            </>
+          <>
+            <svg
+              className="w-24 h-24 text-green-500 mb-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              ></path>
+            </svg>
+            <h2 className="text-4xl font-extrabold text-[#417FF2] mb-4">
+              Sucesso!
+            </h2>
+            <p className="text-lg text-gray-700 mb-6">
+              {message}
+            </p>
+            <p className="text-md text-gray-500">
+              Você será redirecionado(a) para seus pedidos em breve...
+            </p>
+          </>
         )}
         <button
           onClick={() => router.push("/meus-pedidos")}
